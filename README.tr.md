@@ -1,4 +1,6 @@
-<h1 align="center">HFOTradeBot</h1>
+BTC Signal Bot, Bitcoin fiyatlarını izler ve kuralları olası bir alım veya satım sinyali bulduğunda Telegram mesajı gönderir.
+
+<h1 align="center">BTC Signal Bot</h1>
 
 <p align="center"><strong>Mumları takip et. Sinyalin nedenini anla.</strong></p>
 <p align="center">Kapanan Binance BTC/USDT mumlarından gösterge tabanlı Telegram bildirimleri üreten bir Node.js denemesi.</p>
@@ -7,12 +9,12 @@
   <a href="README.md">English</a> · <strong>Türkçe</strong><br />
   <a href="#yerel-çalıştırma"><strong>Yerel çalıştırma</strong></a> ·
   <a href="#sinyaller-nasıl-oluşur">Sinyal mantığı</a> ·
-  <a href="https://github.com/ArdaHFO/HFOTradeBot/issues">Sorun bildir</a>
+  <a href="https://github.com/ArdaHFO/btc-signal-bot/issues">Sorun bildir</a>
 </p>
 
 ---
 
-HFOTradeBot tamamlanan bir dakikalık BTC/USDT mumlarını izler, EMA, RSI ve ATR koşullarını birleştirir ve yapılandırılmış Telegram sohbetlerine Türkçe alım, çıkış ve tut mesajları gönderir. Varsayılan betik ayrıca uzun pozisyon, komisyon ve sermaye için bellekte örnek bir hesap tutar.
+BTC Signal Bot tamamlanan bir dakikalık BTC/USDT mumlarını izler, EMA, RSI ve ATR koşullarını birleştirir ve yapılandırılmış Telegram sohbetlerine Türkçe alım, çıkış ve tut mesajları gönderir. Varsayılan betik ayrıca uzun pozisyon, komisyon ve sermaye için bellekte örnek bir hesap tutar.
 
 **Bu proje eğitim amaçlı bir sinyal prototipidir.** Borsaya emir göndermez. Bakiye mesajları benzetim hesabıdır, borsa bakiyesi veya kârlı işlem kanıtı değildir. İngilizce ve Türkçe belgeler aynı uygulamayı açıklar.
 
@@ -29,8 +31,8 @@ HFOTradeBot tamamlanan bir dakikalık BTC/USDT mumlarını izler, EMA, RSI ve AT
 Projenin kendisi bir Node.js sürüm aralığı tanımlamıyor. Kilitli `npm` bağımlılığı Node.js `^20.17.0 || >=22.9.0` istiyor. Bu nedenle önceki README'deki Node.js 14 gereksinimi mevcut bağımlılıklar için yeterli değil.
 
 ```bash
-git clone https://github.com/ArdaHFO/HFOTradeBot.git
-cd HFOTradeBot
+git clone https://github.com/ArdaHFO/btc-signal-bot.git
+cd btc-signal-bot
 npm ci
 ```
 
@@ -41,7 +43,7 @@ TELEGRAM_BOT_TOKEN=your_bot_token
 TELEGRAM_CHAT_IDS=your_chat_id,another_chat_id
 ```
 
-Kontrol ettiğin bir botu ve sohbetleri kullan. `.env` Git tarafından dışlanır. Eski `chatid.js` aracı bu ortam yapılandırmasını okumadığı için bu kurulum akışına dahil değildir.
+Kontrol ettiğin bir botu ve sohbetleri kullan. `.env` Git tarafından dışlanır. İsteğe bağlı `chatid.js` aracı aynı `TELEGRAM_BOT_TOKEN` değişkenini okur. Özellikle çalıştırıldığında sohbet kimliklerini bulmak için Telegram güncellemelerini ister.
 
 Yapılandırmayı tamamladıktan sonra botu başlat. Bu komut Binance'e bağlanır ve tanımlanan bütün sohbetlere hemen başlangıç mesajı, ardından sinyal ve dönemsel tut mesajları gönderebilir.
 
@@ -53,7 +55,7 @@ npm start
 
 ## Botun içinde
 
-- **Kapanmış mumlarla çalışma.** REST geçmişi göstergeleri başlatır. WebSocket işleyicisi yalnızca Binance'in kapanmış olarak işaretlediği mumları işler.
+- **Kapanmış mumlarla çalışma.** Göstergeler yalnızca kapanmış REST mumlarıyla başlatılır. WebSocket işleyicisi bozuk mesajları ve daha önce işlenen kapanış zamanlarını atlar, yalnızca Binance'in kapanmış olarak işaretlediği mumları işler.
 - **Üç gösterge ailesi.** EMA 5/21 trend yönünü, RSI 14 momentum filtresini, ATR 7 ise fiyat hareketi ve EMA ayrışması eşiklerini sağlar.
 - **Pozisyon durumuna bağlı bildirimler.** Varsayılan betik tek bir uzun pozisyonu benzetir ve çıkış koşulunun nedenini bildirir.
 - **Birden fazla Telegram alıcısı.** `notify.js`, virgülle ayrılmış sohbet kimliklerini okuyarak aynı mesajı her alıcıya gönderir.
@@ -73,7 +75,7 @@ npm start
 | Zarar kes eşiği | Benzetilen net getiri hesabında %0,7 |
 | Kâr hedefi | Benzetilen net getiri hesabında %0,2 |
 
-Kod mevcut EMA değerlerini karşılaştırır. Ardışık iki mum arasında yeni bir kesişim gerçekleşmesini şart koşmaz. Başlangıç sermayesi örnek olarak 20.000 seçilmiştir. Akış BTC/USDT olmasına ve kur dönüşümü bulunmamasına rağmen mesajlar bakiyeyi `TL` olarak etiketler.
+Kod mevcut EMA değerlerini karşılaştırır. Ardışık iki mum arasında yeni bir kesişim gerçekleşmesini şart koşmaz. Başlangıç sermayesi örnek olarak 20.000 USDT seçilmiştir. Mesajlar akışın karşıt para birimini kullanır. Alım komisyonu maliyet tabanına dahildir ve benzetilen pozisyon kapanırken net kâr/zarardan bir kez düşülür.
 
 [`BEST.js`](BEST.js), farklı pozisyon ve durum davranışına sahip alternatif bir strateji betiğidir. Varsayılan başlangıç dosyası değildir ve kullanılmadan önce ayrı incelenmelidir.
 
@@ -89,7 +91,7 @@ node --check BEST.js
 node --check notify.js
 ```
 
-Uygulama kaynağında otomatik test paketi, geçmiş veri üzerinde strateji değerlendirme motoru veya CI iş akışı bulunmuyor. Bu dokümantasyon güncellemesinde bot çalıştırılmadı, Telegram'a bağlanılmadı, emir gönderilmedi ve strateji performansı doğrulanmadı.
+Uygulama kaynağında otomatik test paketi, geçmiş veri üzerinde strateji değerlendirme motoru veya CI iş akışı bulunmuyor. Mevcut düzeltmeler statik olarak incelendi. Bot, sözdizimi kontrolleri, testler ve performans deneyleri çalıştırılmadı. Telegram'a bağlanılmadı ve strateji performansı doğrulanmadı.
 
 Mevcut sınırlar arasında yeniden başlatmada sıfırlanan bellek durumu, bağlantı kesintisinde kaçırılan mumların tamamlanmaması ve kalıcı işlem defterinin bulunmaması var. Benzetilen sermaye hesabı bağımsız olarak uzlaştırılmış değil. Bildirimleri ve gösterilen performans yüzdesini değerlendirirken bunları dikkate al.
 
@@ -100,7 +102,7 @@ Mevcut sınırlar arasında yeniden başlatmada sıfırlanan bellek durumu, bağ
 | [`index.js`](index.js) | Varsayılan mum işleme, strateji ve benzetilen bakiye |
 | [`notify.js`](notify.js) | Ortam değişkenleriyle yapılandırılan Telegram gönderimi |
 | [`BEST.js`](BEST.js) | Alternatif strateji uygulaması |
-| [`chatid.js`](chatid.js) | Bağımsız çalışan eski sohbet bulma aracı |
+| [`chatid.js`](chatid.js) | Ortam değişkeni kullanan bağımsız sohbet bulma aracı |
 | [`package.json`](package.json) | Başlangıç komutu ve bağımlılıklar |
 | [`package-lock.json`](package-lock.json) | Kilitli bağımlılık ağacı |
 

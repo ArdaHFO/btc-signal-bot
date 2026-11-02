@@ -1,4 +1,6 @@
-<h1 align="center">HFOTradeBot</h1>
+BTC Signal Bot watches Bitcoin prices and sends Telegram messages when its rules detect a possible buying or selling signal.
+
+<h1 align="center">BTC Signal Bot</h1>
 
 <p align="center"><strong>Follow the candles. Understand the signal.</strong></p>
 <p align="center">A Node.js experiment that turns closed Binance BTC/USDT candles into indicator-based Telegram alerts.</p>
@@ -7,12 +9,12 @@
   <strong>English</strong> · <a href="README.tr.md">Türkçe</a><br />
   <a href="#run-locally"><strong>Run locally</strong></a> ·
   <a href="#how-signals-work">Signal logic</a> ·
-  <a href="https://github.com/ArdaHFO/HFOTradeBot/issues">Report an issue</a>
+  <a href="https://github.com/ArdaHFO/btc-signal-bot/issues">Report an issue</a>
 </p>
 
 ---
 
-HFOTradeBot listens for completed one-minute BTC/USDT candles, combines EMA, RSI and ATR conditions, and sends Turkish buy, exit and hold messages to configured Telegram chats. The default script also keeps an in-memory illustration of a long position, commissions and capital.
+BTC Signal Bot listens for completed one-minute BTC/USDT candles, combines EMA, RSI and ATR conditions, and sends Turkish buy, exit and hold messages to configured Telegram chats. The default script also keeps an in-memory illustration of a long position, commissions and capital.
 
 **This is an educational signal prototype.** It does not submit exchange orders. Its balance messages are simulated bookkeeping, not an exchange balance or evidence of profitable trading. English and Turkish documentation describe the same implementation.
 
@@ -29,8 +31,8 @@ HFOTradeBot listens for completed one-minute BTC/USDT candles, combines EMA, RSI
 The repository does not declare its own Node.js engine range. The locked `npm` dependency requires Node.js `^20.17.0 || >=22.9.0`, so the previous README's Node.js 14 requirement is insufficient for the current dependency set.
 
 ```bash
-git clone https://github.com/ArdaHFO/HFOTradeBot.git
-cd HFOTradeBot
+git clone https://github.com/ArdaHFO/btc-signal-bot.git
+cd btc-signal-bot
 npm ci
 ```
 
@@ -41,7 +43,7 @@ TELEGRAM_BOT_TOKEN=your_bot_token
 TELEGRAM_CHAT_IDS=your_chat_id,another_chat_id
 ```
 
-Use a bot and chats you control. `.env` is ignored by Git. The legacy `chatid.js` utility does not read this environment configuration and is not part of this setup flow.
+Use a bot and chats you control. `.env` is ignored by Git. The optional `chatid.js` utility reads the same `TELEGRAM_BOT_TOKEN` variable. Running it deliberately requests Telegram updates to look up chat IDs.
 
 Start the configured bot deliberately. This command connects to Binance and can immediately send a startup message, followed by signals and periodic hold messages to every configured chat.
 
@@ -53,7 +55,7 @@ Stop it with `Ctrl+C`. No Binance account key is needed because the application 
 
 ## Inside the bot
 
-- **Closed-candle processing.** REST history seeds the indicators, then the WebSocket handler processes candles only when Binance marks them closed.
+- **Closed-candle processing.** Only completed REST candles seed the indicators. The WebSocket handler ignores malformed messages and already processed close timestamps, and processes candles only when Binance marks them closed.
 - **Three indicator families.** EMA 5/21 supplies trend direction, RSI 14 filters momentum, and ATR 7 scales movement and EMA-separation thresholds.
 - **Stateful entry and exit alerts.** The default script follows a single simulated long position and reports why an exit condition was met.
 - **Multiple Telegram recipients.** `notify.js` reads comma-separated chat IDs and sends each recipient the same message.
@@ -73,7 +75,7 @@ The default entry point is [`index.js`](index.js), selected by `npm start`. Stra
 | Stop-loss threshold | 0.7% in the simulated net-return calculation |
 | Profit target | 0.2% in the simulated net-return calculation |
 
-The code compares the current EMA values. It does not require a newly observed crossover between two successive candles. The starting capital is an illustrative constant of 20,000. Messages label it `TL` although the feed is BTC/USDT and no foreign-exchange conversion is implemented.
+The code compares the current EMA values. It does not require a newly observed crossover between two successive candles. The starting capital is an illustrative constant of 20,000 USDT. Messages use the feed's quote currency. Entry commission is included in the cost basis and deducted once in net profit/loss when the simulated position closes.
 
 [`BEST.js`](BEST.js) is an alternative strategy script with different position/status behavior. It is not the default launch target and should be reviewed separately before use.
 
@@ -89,7 +91,7 @@ node --check BEST.js
 node --check notify.js
 ```
 
-No automated test suite, backtest engine or CI workflow is included in the application source. This documentation update did not run the bot, contact Telegram, place orders or validate strategy performance.
+No automated test suite, backtest engine or CI workflow is included in the application source. The current fixes were reviewed statically. The bot, syntax checks, tests and benchmarks were not run, Telegram was not contacted, and no strategy performance was validated.
 
 Current limits include in-memory state that resets on restart, no recovery of candles missed during a disconnect, and no durable trade ledger. The simulated capital calculation has not been independently reconciled. These constraints matter when interpreting alerts or the displayed performance percentage.
 
@@ -100,7 +102,7 @@ Current limits include in-memory state that resets on restart, no recovery of ca
 | [`index.js`](index.js) | Default candle processing, strategy and simulated balance |
 | [`notify.js`](notify.js) | Environment-configured Telegram delivery |
 | [`BEST.js`](BEST.js) | Alternative strategy implementation |
-| [`chatid.js`](chatid.js) | Legacy standalone chat lookup helper |
+| [`chatid.js`](chatid.js) | Environment-configured standalone chat lookup helper |
 | [`package.json`](package.json) | Start command and declared dependencies |
 | [`package-lock.json`](package-lock.json) | Locked dependency graph |
 

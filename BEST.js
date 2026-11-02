@@ -56,6 +56,7 @@ const closeHistory = [];
 const MIN_REQUIRED_HISTORY_LENGTH = Math.max(EMA_LONG_PERIOD, RSI_PERIOD, ATR_PERIOD) + 2;
 
 let ws;
+let lastCandleCloseTime = 0;
 
 // --- Bot Durum ve "TUT" Mesajı Zamanlayıcısı ---
 const BOT_STATUS_INTERVAL_MS = 30 * 1000; // 30 saniyede bir genel durum mesajı (fiyat dahil)
@@ -69,17 +70,32 @@ async function fetchInitialKlineData() {
             params: {
                 symbol: SYMBOL.toUpperCase(),
                 interval: TIMEFRAME,
-                limit: MIN_REQUIRED_HISTORY_LENGTH
-            }
+                limit: MIN_REQUIRED_HISTORY_LENGTH + 1
+            },
+            timeout: 15000
         });
 
         if (response.data && Array.isArray(response.data)) {
             response.data.forEach(kline => {
-                highHistory.push(parseFloat(kline[2]));
-                lowHistory.push(parseFloat(kline[3]));
-                closeHistory.push(parseFloat(kline[4]));
-                priceHistory.push(parseFloat(kline[4]));
+                if (!Array.isArray(kline)) return;
+                const closeTime = Number(kline[6]);
+                const high = Number(kline[2]);
+                const low = Number(kline[3]);
+                const close = Number(kline[4]);
+                if (![closeTime, high, low, close].every(Number.isFinite) ||
+                    closeTime >= Date.now() || closeTime <= lastCandleCloseTime) return;
+                highHistory.push(high);
+                lowHistory.push(low);
+                closeHistory.push(close);
+                priceHistory.push(close);
+                lastCandleCloseTime = closeTime;
             });
+            while (priceHistory.length > MIN_REQUIRED_HISTORY_LENGTH) {
+                priceHistory.shift();
+                highHistory.shift();
+                lowHistory.shift();
+                closeHistory.shift();
+            }
             console.log(`✅ ${priceHistory.length} adet geçmiş mum verisi yüklendi.`);
         } else {
             console.error("❌ Geçmiş veri çekilemedi veya formatı hatalı.");
@@ -104,17 +120,25 @@ function connectWebSocket() {
   });
 
   ws.on('message', (data) => {
-    const parsed = JSON.parse(data);
-    const candle = parsed.k;
-
-    if (!candle.x) return; // Sadece mum kapanışında işlem yap
+    let parsed;
+    try {
+        parsed = JSON.parse(data.toString());
+    } catch {
+        console.warn('Malformed WebSocket message ignored.');
+        return;
+    }
+    const candle = parsed && parsed.k;
+    if (!candle || candle.x !== true) return;
+    const closeTime = Number(candle.T);
+    if (!Number.isFinite(closeTime) || closeTime <= lastCandleCloseTime) return;
 
     const open = parseFloat(candle.o);
     const high = parseFloat(candle.h);
     const low = parseFloat(candle.l);
     const close = parseFloat(candle.c);
 
-    if (isNaN(close) || isNaN(high) || isNaN(low) || isNaN(open)) return;
+    if (![close, high, low, open].every(Number.isFinite)) return;
+    lastCandleCloseTime = closeTime;
 
     if (priceHistory.length >= MIN_REQUIRED_HISTORY_LENGTH) {
         priceHistory.shift();
@@ -146,7 +170,7 @@ function connectWebSocket() {
 
     const now = Date.now();
 
-    if (!currentEMAShort || !currentEMALong || !currentRSI || !currentATR || previousClose === undefined) {
+    if (![currentEMAShort, currentEMALong, currentRSI, currentATR, previousClose].every(Number.isFinite)) {
         console.log("⚠️ Gösterge hesaplamaları tamamlanmadı veya yeterli geçmiş veri yok, bekliyor...");
         return;
     }

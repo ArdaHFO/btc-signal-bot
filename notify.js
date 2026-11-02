@@ -5,7 +5,7 @@ require('dotenv').config();
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TELEGRAM_CHAT_IDS = process.env.TELEGRAM_CHAT_IDS
-  ? process.env.TELEGRAM_CHAT_IDS.split(',').map(id => id.trim())
+  ? process.env.TELEGRAM_CHAT_IDS.split(',').map(id => id.trim()).filter(Boolean)
   : [];
 
 /**
@@ -25,9 +25,9 @@ async function sendTelegramMessage(text) {
       await axios.post(url, {
         chat_id: chatId,
         text: text
-      });
+      }, { timeout: 15000 });
     } catch (error) {
-      console.error(`❌ Mesaj gönderilemedi (chat_id: ${chatId}):`, error.response?.data || error.message);
+      console.error(`❌ Mesaj gönderilemedi (chat_id: ${chatId}):`, error.response?.status || 'NETWORK_ERROR');
     }
   }
 }

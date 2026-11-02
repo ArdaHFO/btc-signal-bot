@@ -35,9 +35,9 @@ const COMMISSION_RATE = 0.001; // %0.1 Binance spot komisyon oranı (BNB ile öd
 const MIN_PROFIT_TARGET_PERCENTAGE = 0.002; // %0.2 minimum kar hedefi (komisyonları karşılayıp üzerine küçük kar almak için)
 
 // --- Bakiye Takibi ---
-const INITIAL_CAPITAL = 20000; // Başlangıç sermayesi (TL cinsinden veya ana para biriminde)
+const INITIAL_CAPITAL = 20000; // Başlangıç sermayesi (USDT cinsinden)
 let currentCapital = INITIAL_CAPITAL; // Güncel sermaye
-let lastPositionAmount = 0; // Son alınan pozisyonun miktarı (AL işleminde harcanan TL/USDT miktarı)
+let lastPositionAmount = 0; // Son alınan pozisyonun miktarı (AL işleminde harcanan USDT miktarı)
 
 // --- Dahili Değişkenler ---
 let lastSignalTime = 0;
@@ -53,6 +53,7 @@ const closeHistory = [];
 const MIN_REQUIRED_HISTORY_LENGTH = Math.max(EMA_LONG_PERIOD, RSI_PERIOD, ATR_PERIOD) + 2;
 
 let ws;
+let lastCandleCloseTime = 0;
 
 // --- "TUT" Mesajı Zamanlayıcısı ---
 const HOLD_MESSAGE_INTERVAL_MS = 1 * 60 * 1000; // 1 dakikada bir "TUT" mesajı (eğer sinyal yoksa)
@@ -65,17 +66,32 @@ async function fetchInitialKlineData() {
             params: {
                 symbol: SYMBOL.toUpperCase(),
                 interval: TIMEFRAME,
-                limit: MIN_REQUIRED_HISTORY_LENGTH
-            }
+                limit: MIN_REQUIRED_HISTORY_LENGTH + 1
+            },
+            timeout: 15000
         });
 
         if (response.data && Array.isArray(response.data)) {
             response.data.forEach(kline => {
-                highHistory.push(parseFloat(kline[2]));
-                lowHistory.push(parseFloat(kline[3]));
-                closeHistory.push(parseFloat(kline[4]));
-                priceHistory.push(parseFloat(kline[4]));
+                if (!Array.isArray(kline)) return;
+                const closeTime = Number(kline[6]);
+                const high = Number(kline[2]);
+                const low = Number(kline[3]);
+                const close = Number(kline[4]);
+                if (![closeTime, high, low, close].every(Number.isFinite) ||
+                    closeTime >= Date.now() || closeTime <= lastCandleCloseTime) return;
+                highHistory.push(high);
+                lowHistory.push(low);
+                closeHistory.push(close);
+                priceHistory.push(close);
+                lastCandleCloseTime = closeTime;
             });
+            while (priceHistory.length > MIN_REQUIRED_HISTORY_LENGTH) {
+                priceHistory.shift();
+                highHistory.shift();
+                lowHistory.shift();
+                closeHistory.shift();
+            }
             console.log(`✅ ${priceHistory.length} adet geçmiş mum verisi yüklendi.`);
         } else {
             console.error("❌ Geçmiş veri çekilemedi veya formatı hatalı.");
@@ -93,25 +109,33 @@ function connectWebSocket() {
     console.log(`📡 Binance WebSocket bağlantısı kuruldu: ${SYMBOL}@${TIMEFRAME}`);
     // Sadece bot başlangıcında bir kez durum mesajı gönder
     if (closeHistory.length > 0) {
-        sendTelegramMessage(`🤖 Bot başlatıldı! Anlık Fiyat: ${closeHistory.at(-1).toFixed(2)}\nBaşlangıç Sermayesi: ${INITIAL_CAPITAL.toFixed(2)} TL`);
+        sendTelegramMessage(`🤖 Bot başlatıldı! Anlık Fiyat: ${closeHistory.at(-1).toFixed(2)}\nBaşlangıç Sermayesi: ${INITIAL_CAPITAL.toFixed(2)} USDT`);
     } else {
-        sendTelegramMessage(`🤖 Bot başlatıldı! (Fiyat bekleniyor)\nBaşlangıç Sermayesi: ${INITIAL_CAPITAL.toFixed(2)} TL`);
+        sendTelegramMessage(`🤖 Bot başlatıldı! (Fiyat bekleniyor)\nBaşlangıç Sermayesi: ${INITIAL_CAPITAL.toFixed(2)} USDT`);
     }
     lastTradeOrSignalTime = Date.now(); // Bot başladığında zamanı sıfırla
   });
 
   ws.on('message', (data) => {
-    const parsed = JSON.parse(data);
-    const candle = parsed.k;
-
-    if (!candle.x) return; // Sadece mum kapanışında işlem yap
+    let parsed;
+    try {
+        parsed = JSON.parse(data.toString());
+    } catch {
+        console.warn('Malformed WebSocket message ignored.');
+        return;
+    }
+    const candle = parsed && parsed.k;
+    if (!candle || candle.x !== true) return;
+    const closeTime = Number(candle.T);
+    if (!Number.isFinite(closeTime) || closeTime <= lastCandleCloseTime) return;
 
     const open = parseFloat(candle.o);
     const high = parseFloat(candle.h);
     const low = parseFloat(candle.l);
     const close = parseFloat(candle.c); // Güncel kapanış fiyatı
 
-    if (isNaN(close) || isNaN(high) || isNaN(low) || isNaN(open)) return;
+    if (![close, high, low, open].every(Number.isFinite)) return;
+    lastCandleCloseTime = closeTime;
 
     if (priceHistory.length >= MIN_REQUIRED_HISTORY_LENGTH) {
         priceHistory.shift();
@@ -143,7 +167,7 @@ function connectWebSocket() {
 
     const now = Date.now();
 
-    if (!currentEMAShort || !currentEMALong || !currentRSI || !currentATR || previousClose === undefined) {
+    if (![currentEMAShort, currentEMALong, currentRSI, currentATR, previousClose].every(Number.isFinite)) {
         console.log("⚠️ Gösterge hesaplamaları tamamlanmadı veya yeterli geçmiş veri yok, bekliyor...");
         return;
     }
@@ -165,11 +189,10 @@ function connectWebSocket() {
         lastBuyPrice = close; // Kripto biriminin alış fiyatı
         positionCostBasis = close * (1 + COMMISSION_RATE); // Gerçek maliyet (alış fiyatı + alım komisyonu)
 
-        // Güncel sermayeden alım komisyonunu düş (simülasyon)
-        currentCapital -= (lastPositionAmount * COMMISSION_RATE); // Sadece alım komisyonu düşülür
+        // Alım komisyonu positionCostBasis içindedir ve çıkıştaki net K/Z'de bir kez düşülür.
 
         sendTelegramMessage(
-            `📈 AL SİNYALİ!\nFiyat: ${close.toFixed(2)}\nEMA${EMA_SHORT_PERIOD}: ${currentEMAShort.toFixed(2)} | EMA${EMA_LONG_PERIOD}: ${currentEMALong.toFixed(2)}\nRSI(${RSI_PERIOD}): ${currentRSI.toFixed(1)}\nATR(${ATR_PERIOD}): ${currentATR.toFixed(2)}\nGüncel Bakiye: ${currentCapital.toFixed(2)} TL`
+            `📈 AL SİNYALİ!\nFiyat: ${close.toFixed(2)}\nEMA${EMA_SHORT_PERIOD}: ${currentEMAShort.toFixed(2)} | EMA${EMA_LONG_PERIOD}: ${currentEMALong.toFixed(2)}\nRSI(${RSI_PERIOD}): ${currentRSI.toFixed(1)}\nATR(${ATR_PERIOD}): ${currentATR.toFixed(2)}\nGüncel Bakiye: ${currentCapital.toFixed(2)} USDT`
         );
         lastSignalTime = now;
         lastTradeType = 'BUY'; // Pozisyonu 'BUY' olarak işaretle
@@ -234,7 +257,7 @@ function connectWebSocket() {
             const totalPerformancePercentage = ((currentCapital - INITIAL_CAPITAL) / INITIAL_CAPITAL) * 100;
 
             sendTelegramMessage(
-              `📉 SAT SİNYALİ (Pozisyon Kapatma)!\nSebep: ${reason}\nFiyat: ${close.toFixed(2)}\nNet K/Z: ${netProfitLossPercentage.toFixed(2)}%\n\n🚨 Güncel Bakiye: ${currentCapital.toFixed(2)} TL\n🚨 Toplam Performans: ${totalPerformancePercentage.toFixed(2)}%`
+              `📉 SAT SİNYALİ (Pozisyon Kapatma)!\nSebep: ${reason}\nFiyat: ${close.toFixed(2)}\nNet K/Z: ${netProfitLossPercentage.toFixed(2)}%\n\n🚨 Güncel Bakiye: ${currentCapital.toFixed(2)} USDT\n🚨 Toplam Performans: ${totalPerformancePercentage.toFixed(2)}%`
             );
             lastSignalTime = now;
             lastTradeType = null; // Pozisyonu kapatınca nakite geçtik
@@ -286,6 +309,7 @@ async function startBot() {
         if (now - lastTradeOrSignalTime >= HOLD_MESSAGE_INTERVAL_MS) {
             let message = '';
             const currentPrice = closeHistory.at(-1);
+            if (!Number.isFinite(currentPrice)) return;
 
             if (lastTradeType === 'BUY') { // Pozisyonda ise
                 // Kar/Zarar hesaplaması: Net satış fiyatı - Maliyet Bazı
@@ -298,7 +322,7 @@ async function startBot() {
                 message = `🟢 TUT (AL Pozisyonunda)! Fiyat: ${currentPrice.toFixed(2)} | Giriş Maliyet: ${positionCostBasis.toFixed(2)} | Net K/Z: ${netProfitLossPercentage.toFixed(2)}%`;
             } else { // lastTradeType === null (Pozisyonda değilse)
                 const totalPerformancePercentage = ((currentCapital - INITIAL_CAPITAL) / INITIAL_CAPITAL) * 100;
-                message = `😏 TUT (NAKİT)! Yeni AL sinyali bekleniyor...\nGüncel Bakiye: ${currentCapital.toFixed(2)} TL\nToplam Performans: ${totalPerformancePercentage.toFixed(2)}%`;
+                message = `😏 TUT (NAKİT)! Yeni AL sinyali bekleniyor...\nGüncel Bakiye: ${currentCapital.toFixed(2)} USDT\nToplam Performans: ${totalPerformancePercentage.toFixed(2)}%`;
             }
             sendTelegramMessage(message);
             lastTradeOrSignalTime = now; // TUT mesajı gönderildiğinde zamanlayıcıyı sıfırla
