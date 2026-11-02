@@ -16,7 +16,7 @@ BTC Signal Bot, Bitcoin fiyatlarını izler ve kuralları olası bir alım veya 
 
 BTC Signal Bot tamamlanan bir dakikalık BTC/USDT mumlarını izler, EMA, RSI ve ATR koşullarını birleştirir ve yapılandırılmış Telegram sohbetlerine Türkçe alım, çıkış ve tut mesajları gönderir. Varsayılan betik ayrıca uzun pozisyon, komisyon ve sermaye için bellekte örnek bir hesap tutar.
 
-**Bu proje eğitim amaçlı bir sinyal prototipidir.** Borsaya emir göndermez. Bakiye mesajları benzetim hesabıdır, borsa bakiyesi veya kârlı işlem kanıtı değildir. İngilizce ve Türkçe belgeler aynı uygulamayı açıklar.
+**Bot, işlem sinyalleri gönderir ve benzetim pozisyonlarını izler.** Borsaya emir göndermez. Bakiye mesajları benzetim hesabıdır, borsa bakiyesi veya kârlı işlem kanıtı değildir. İngilizce ve Türkçe belgeler aynı uygulamayı açıklar.
 
 ## Yerel çalıştırma
 

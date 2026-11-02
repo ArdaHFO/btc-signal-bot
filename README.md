@@ -3,7 +3,7 @@ BTC Signal Bot watches Bitcoin prices and sends Telegram messages when its rules
 <h1 align="center">BTC Signal Bot</h1>
 
 <p align="center"><strong>Follow the candles. Understand the signal.</strong></p>
-<p align="center">A Node.js experiment that turns closed Binance BTC/USDT candles into indicator-based Telegram alerts.</p>
+<p align="center">A Node.js application that turns closed Binance BTC/USDT candles into indicator-based Telegram alerts.</p>
 
 <p align="center">
   <strong>English</strong> · <a href="README.tr.md">Türkçe</a><br />
@@ -16,7 +16,7 @@ BTC Signal Bot watches Bitcoin prices and sends Telegram messages when its rules
 
 BTC Signal Bot listens for completed one-minute BTC/USDT candles, combines EMA, RSI and ATR conditions, and sends Turkish buy, exit and hold messages to configured Telegram chats. The default script also keeps an in-memory illustration of a long position, commissions and capital.
 
-**This is an educational signal prototype.** It does not submit exchange orders. Its balance messages are simulated bookkeeping, not an exchange balance or evidence of profitable trading. English and Turkish documentation describe the same implementation.
+**The bot sends trading signals and tracks simulated positions.** It does not submit exchange orders. Its balance messages are simulated bookkeeping, not an exchange balance or evidence of profitable trading. English and Turkish documentation describe the same implementation.
 
 ## Run locally
 
